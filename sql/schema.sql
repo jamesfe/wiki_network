@@ -1,14 +1,13 @@
 
 
-DROP TABLE wiki_collections cascade;
-drop sequence coll_id_seq;
+DROP TABLE IF EXISTS wiki_collections cascade;
+drop sequence IF EXISTS coll_id_seq;
 create sequence coll_id_seq;
 
 CREATE TABLE wiki_collections
 (
-  page_title character varying,
   page_id integer,
-  collected boolean,
+  rev_collected boolean,
   seed_article integer,
   start_time timestamp,
   coll_id integer NOT NULL DEFAULT nextval('coll_id_seq'::regclass),
@@ -20,8 +19,8 @@ WITH (
 ALTER TABLE wiki_collections
   OWNER TO jimmy1;
 
-DROP TABLE wiki_usernames cascade;
-drop sequence user_id_seq;
+DROP TABLE IF EXISTS wiki_usernames cascade;
+drop sequence IF EXISTS user_id_seq;
 create sequence user_id_seq;
 
 CREATE TABLE wiki_usernames
@@ -37,15 +36,15 @@ ALTER TABLE wiki_usernames
   OWNER TO jimmy1;
 
 
-DROP TABLE wiki_pages cascade;
-drop sequence wpage_id_seq;
+DROP TABLE IF EXISTS wiki_pages cascade;
+drop sequence IF EXISTS wpage_id_seq;
 create sequence wpage_id_seq;
 
 CREATE TABLE wiki_pages
 (
   page_name character varying,
   wpage_id integer NOT NULL DEFAULT nextval('wpage_id_seq'::regclass),
-  CONSTRAINT wiki_page_id PRIMARY KEY (wpage_id)
+  CONSTRAINT wiki_pageid_pkey PRIMARY KEY (wpage_id)
 )
 WITH (
   OIDS=FALSE
@@ -54,8 +53,8 @@ ALTER TABLE wiki_pages
   OWNER TO jimmy1;
 
 
-DROP TABLE wiki_edits cascade;
-drop sequence wedit_id_seq;
+DROP TABLE IF EXISTS wiki_edits cascade;
+drop sequence IF EXISTS wedit_id_seq;
 create sequence wedit_id_seq;
 
 CREATE TABLE wiki_edits
@@ -69,7 +68,7 @@ CREATE TABLE wiki_edits
   parentrev integer,
   wedit_id integer NOT NULL DEFAULT nextval('wedit_id_seq'::regclass),
 
-  CONSTRAINT wiki_page_id PRIMARY KEY (wedit_id)
+  CONSTRAINT wedit_id_pkey PRIMARY KEY (wedit_id)
 )
 WITH (
   OIDS=FALSE
