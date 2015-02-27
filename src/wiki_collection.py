@@ -27,27 +27,30 @@ class WikiCollector:
         self.conn = psycopg2.connect(conn_str)
         self.collect_targets = list()
 
-        tgt_sql = "SELECT coll_id FROM wiki_collections wc LEFT JOIN wiki_pages wp ON wc.page_id=wp.wpage_id WHERE rev_collected=FALSE"
         curs = self.conn.cursor()
-        curs.execute(tgt_sql)
+
+        sql = "SELECT COUNT(*) FROM wiki_pages"
+        curs.execute(sql)
         res = curs.fetchall()
-        for collect_id in res:
-            self.collect_targets.append(collect_id)
+        print "Current results in database: ", res
+        if res[0][0] == 0:
+            print "Inserting seed."
+            self.insert_seed()
 
         ## We keep this variable around as a kind of global so we know when the last API call we made
         ## was.  This is so we can only do one call per second.
         self.api_clock = time.time()
-        self.api_reqrate = 1.1 # 1.1 seconds between each call
+        self.api_reqrate = 1.1  # 1.1 seconds between each call
 
     def insert_seed(self):
         """
         Insert our seed article.  In this case, maybe "Albert Einstein" is a good choice.
         :return:
         """
-        curs = self.conn()
+        curs = self.conn.cursor()
 
         sql = "INSERT INTO wiki_pages (page_name) VALUES (%s)"
-        data = "Albert Einstein"
+        data = ("Albert Einstein", )
 
         curs.execute(sql, data)
 
@@ -62,6 +65,23 @@ class WikiCollector:
 
         curs.execute(sql, data)
 
+    def perform_collections(self):
+        """
+        Main thread - actually do the collections.
+        :return:
+        """
+        print "Performing collections"
+        curs = self.conn.cursor()
+        sql = "SELECT page_id FROM wiki_collections WHERE rev_collected = FALSE ORDER BY coll_id ASC LIMIT 1"
+        ## Watch out, we use the above sql statement later again (in a loop!)
+        curs.execute(sql)
+        res = curs.fetchone()
+        while res is not None:
+            print "Collecting result: ", res
+            self.collect_page(res[0])
+            curs.execute(sql)
+            res = curs.fetchone()
+
     def collect_page(self, page_id):
         """
         Responsibilities:
@@ -75,7 +95,8 @@ class WikiCollector:
                 - Insert each un-collected page into the wiki-collections table.
         :return:
         """
-        pass
+        links = self.gather_links(page_id)
+        print links
 
     def gather_revisions(self, page_id):
         """
@@ -98,7 +119,51 @@ class WikiCollector:
         :param page_id:
         :return:
         """
-        pass
+        # http://en.wikipedia.org/w/api.php?action=query&titles=[[page_title]]&prop=links&format=json&pllimit=500&continue=
+        curs = self.conn.cursor()
+
+        sql = "SELECT page_name FROM wiki_pages WHERE wpage_id=%s LIMIT 1"
+        data = (page_id, )
+        curs.execute(sql, data)
+        res = curs.fetchone()
+        if res is None:
+            return -1
+
+        payload = dict({
+            "action": "query",
+            "titles": res[0],
+            "prop": "links",
+            "format": "json",
+            "pllimit": 500,
+            "continue": ""
+        })
+        headers = dict({
+            "User-Agent": "Wiki_Network_Collections 1.0 (no url; james.ferrara@gmail.com) "
+                          "Using Python Requests/v.2.5.3"
+        })
+
+        self.api_checktime()
+        api_req = requests.get("http://en.wikipedia.org/w/api.php",
+                               params=payload,
+                               headers=headers)
+
+        try:
+            api_json = api_req.json()
+            # There's a chance that there are more than 500 results, but I think
+            # that other pages will eventually collect those.
+            # TODO: Fix it.
+            return api_json
+        except ValueError:
+            return -1
+
+    def api_checktime(self):
+        """
+        Check the time, wait if necessary, and log a new api request.
+        :return:
+        """
+        if time.time() < (self.api_clock + self.api_reqrate):
+            time.sleep(self.api_reqrate)
+        self.api_clock = time.time()
 
     def add_username(self, username):
         """
@@ -106,7 +171,19 @@ class WikiCollector:
         :param username: some string
         :return: user_id
         """
-        pass
+        curs = self.conn.cursor()
+        sql = "SELECT user_id FROM wiki_usernames WHERE username=%s"
+        data = (username, )
+        curs.execute(sql, data)
+        res = curs.fetchone()
+        if len(res) > 0:
+            return res[0]
+        else:
+            sql = "INSERT INTO wiki_usernames (username) VALUE (%s) RETURNING user_id"
+            # Reusing data here.  Bad code smell?
+            curs.execute(sql, data)
+            res = curs.fetchone()
+            return res[0]
 
     def add_page(self, page_name):
         """
@@ -114,4 +191,26 @@ class WikiCollector:
         :param page_name: some string
         :return:
         """
-        pass
+        curs = self.conn.cursor()
+
+        # Log the visit, then see if the page is already in existance.
+        visit_sql = "INSERT INTO wiki_visits (page_name, visit_time) VALUES (%d, NOW())"
+        visit_data = (page_name, )
+        curs.execute(visit_sql, visit_data)
+
+        sql = "SELECT wpage_id FROM wiki_pages WHERE page_name=%s"
+        data = (page_name, )
+        curs.execute(sql, data)
+        res = curs.fetchone()
+        if len(res) > 0:
+            return res[0]
+        else:
+            sql = "INSERT INTO wiki_pages (username) VALUE (%s) RETURNING wpage_id"
+            # Reusing data here.  Bad code smell?
+            curs.execute(sql, data)
+            res = curs.fetchone()
+            return res[0]
+
+if __name__ == "__main__":
+    wkcoll = WikiCollector()
+    wkcoll.perform_collections()

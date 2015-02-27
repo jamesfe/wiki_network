@@ -52,6 +52,26 @@ WITH (
 ALTER TABLE wiki_pages
   OWNER TO jimmy1;
 
+DROP TABLE IF EXISTS wiki_visits cascade;
+drop sequence IF EXISTS visit_id_seq;
+create sequence visit_id_seq;
+
+CREATE TABLE wiki_visits
+(
+  page_name character varying,
+  visit_time timestamp,
+  visit_id integer NOT NULL DEFAULT nextval('visit_id_seq'::regclass),
+  CONSTRAINT wiki_visitid_pkey PRIMARY KEY (visit_id)
+)
+WITH (
+  OIDS=FALSE
+);
+ALTER TABLE wiki_visits
+  OWNER TO jimmy1;
+
+
+
+
 
 DROP TABLE IF EXISTS wiki_edits cascade;
 drop sequence IF EXISTS wedit_id_seq;
