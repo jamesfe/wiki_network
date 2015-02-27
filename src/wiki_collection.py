@@ -1,7 +1,6 @@
 
 
 import requests
-import json
 import psycopg2
 import time
 
@@ -96,7 +95,10 @@ class WikiCollector:
         :return:
         """
         links = self.gather_links(page_id)
-        print links
+        for key in links['query']['pages']:
+            for link in links['query']['pages'][key]['links']:
+                self.add_page(link['title'])
+
 
     def gather_revisions(self, page_id):
         """
@@ -183,6 +185,7 @@ class WikiCollector:
             # Reusing data here.  Bad code smell?
             curs.execute(sql, data)
             res = curs.fetchone()
+            self.conn.commit()
             return res[0]
 
     def add_page(self, page_name):
@@ -191,25 +194,29 @@ class WikiCollector:
         :param page_name: some string
         :return:
         """
+        # TODO: Insert page into collections matrix.
         curs = self.conn.cursor()
 
         # Log the visit, then see if the page is already in existance.
-        visit_sql = "INSERT INTO wiki_visits (page_name, visit_time) VALUES (%d, NOW())"
+        visit_sql = "INSERT INTO wiki_visits (page_name, visit_time) VALUES (%s, NOW())"
         visit_data = (page_name, )
         curs.execute(visit_sql, visit_data)
+        self.conn.commit()
 
         sql = "SELECT wpage_id FROM wiki_pages WHERE page_name=%s"
         data = (page_name, )
         curs.execute(sql, data)
         res = curs.fetchone()
-        if len(res) > 0:
+        if res is not None:
             return res[0]
         else:
-            sql = "INSERT INTO wiki_pages (username) VALUE (%s) RETURNING wpage_id"
+            sql = "INSERT INTO wiki_pages (page_name) VALUES (%s) RETURNING wpage_id"
             # Reusing data here.  Bad code smell?
             curs.execute(sql, data)
             res = curs.fetchone()
+            self.conn.commit()
             return res[0]
+
 
 if __name__ == "__main__":
     wkcoll = WikiCollector()
