@@ -70,9 +70,6 @@ ALTER TABLE wiki_visits
   OWNER TO jimmy1;
 
 
-
-
-
 DROP TABLE IF EXISTS wiki_edits cascade;
 drop sequence IF EXISTS wedit_id_seq;
 create sequence wedit_id_seq;

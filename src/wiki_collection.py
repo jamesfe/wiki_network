@@ -97,8 +97,10 @@ class WikiCollector:
         links = self.gather_links(page_id)
         for key in links['query']['pages']:
             for link in links['query']['pages'][key]['links']:
-                self.add_page(link['title'])
+                self.add_page(link['title'], page_id)
 
+        page_revisions = self.gather_revisions(page_id)
+        ## TODO: Insert each revision into the database.
 
     def gather_revisions(self, page_id):
         """
@@ -110,8 +112,70 @@ class WikiCollector:
 
         :param page_id:
         :return:
+        =timestamp|user|comment|size|ids&format=json&rvlimit=500&continue=
         """
-        pass
+        page_name = self.get_page_name(page_id)
+        payload = dict({
+            "action": "query",
+            "prop": "revisions",
+            "titles": page_name,
+            "rvprop": "timestamp|user|comment|size|ids",
+            "format": "json",
+            "rvlimit": 500,
+            "continue": ""
+        })
+
+        revisions = []
+
+        revs = self.wiki_query(payload)
+        print revs
+        for r in revs:
+            for key in r['query']['pages']:
+                for rev in r['query']['pages'][key]['revisions']:
+                    revisions.append(rev)
+        return revisions
+
+    def wiki_query(self, params):
+        ## TODO: Ensure we are gathering all revisions.  Check against DB.
+        headers = dict({
+            "User-Agent": "Wiki_Network_Collections 1.0 (no url; james.ferrara@gmail.com) "
+                          "Using Python Requests/v.2.5.3"
+        })
+        last_continue = ''
+        query_res = []
+        while True:
+            # Modify it with the values returned in the 'continue' section of the last result.
+            params['continue'] = last_continue
+            # Call API
+            self.api_checktime()
+            result = requests.get('http://en.wikipedia.org/w/api.php', params=params, headers=headers).json()
+            # print params, result
+            if 'error' in result:
+                raise ValueError(result['error'])
+            if 'warnings' in result:
+                print(result['warnings'])
+            if 'query' in result:
+                query_res.append(result)
+            if 'continue' not in result:
+                # print "no continue, breaking"
+                break
+            last_continue = result['continue']
+        return query_res
+
+    def get_page_name(self, page_id):
+        """
+        from a page_id, return a page name
+        :param page_id:
+        :return:
+        """
+        curs = self.conn.cursor()
+        sql = "SELECT page_name FROM wiki_pages WHERE wpage_id=%s LIMIT 1"
+        data = (page_id, )
+        curs.execute(sql, data)
+        res = curs.fetchone()
+        if res is None:
+            return -1
+        return res[0]
 
     def gather_links(self, page_id):
         """
@@ -122,18 +186,11 @@ class WikiCollector:
         :return:
         """
         # http://en.wikipedia.org/w/api.php?action=query&titles=[[page_title]]&prop=links&format=json&pllimit=500&continue=
-        curs = self.conn.cursor()
-
-        sql = "SELECT page_name FROM wiki_pages WHERE wpage_id=%s LIMIT 1"
-        data = (page_id, )
-        curs.execute(sql, data)
-        res = curs.fetchone()
-        if res is None:
-            return -1
+        page_name = self.get_page_name(page_id)
 
         payload = dict({
             "action": "query",
-            "titles": res[0],
+            "titles": page_name,
             "prop": "links",
             "format": "json",
             "pllimit": 500,
@@ -188,13 +245,12 @@ class WikiCollector:
             self.conn.commit()
             return res[0]
 
-    def add_page(self, page_name):
+    def add_page(self, page_name, seed_article):
         """
         Add a page's name to the database, if it's already there, just return an ID.
         :param page_name: some string
         :return:
         """
-        # TODO: Insert page into collections matrix.
         curs = self.conn.cursor()
 
         # Log the visit, then see if the page is already in existance.
@@ -214,10 +270,17 @@ class WikiCollector:
             # Reusing data here.  Bad code smell?
             curs.execute(sql, data)
             res = curs.fetchone()
+
+            collect_sql = "INSERT INTO wiki_collections (page_id, rev_collected, seed_article, start_time) " \
+                          "VALUES (%s, FALSE, %s, NOW())"
+            coll_data = (res[0], seed_article)
+            curs.execute(collect_sql, coll_data)
+
             self.conn.commit()
             return res[0]
 
 
 if __name__ == "__main__":
     wkcoll = WikiCollector()
-    wkcoll.perform_collections()
+    wkcoll.gather_revisions(1)
+    # wkcoll.perform_collections()
