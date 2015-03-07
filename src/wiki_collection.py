@@ -3,7 +3,9 @@
 import requests
 import psycopg2
 import time
+import re
 
+REQYEARS = ('2014', '2015')
 
 class WikiCollector:
     """
@@ -41,6 +43,8 @@ class WikiCollector:
         self.api_clock = time.time()
         self.api_reqrate = 1.1  # 1.1 seconds between each call
 
+        self.badnames = re.compile('^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$')
+
     def insert_seed(self):
         """
         Insert our seed article.  In this case, maybe "Albert Einstein" is a good choice.
@@ -48,19 +52,11 @@ class WikiCollector:
         """
         curs = self.conn.cursor()
 
-        sql = "INSERT INTO wiki_pages (page_name) VALUES (%s)"
-        data = ("Albert Einstein", )
-
-        curs.execute(sql, data)
-
-        sql = "SELECT wpage_id FROM wiki_pages WHERE page_name=%s"
-
-        curs.execute(sql, data)
-        res = curs.fetchone()
+        page_id = self.add_page("Aage Bohr", -1)
 
         sql = "INSERT INTO wiki_collections (page_id, rev_collected, seed_article, start_time) " \
               "VALUES (%s, FALSE, -1, NOW())"
-        data = (res[0],)
+        data = (page_id,)
 
         curs.execute(sql, data)
 
@@ -76,7 +72,7 @@ class WikiCollector:
         curs.execute(sql)
         res = curs.fetchone()
         while res is not None:
-            print "Collecting result: ", res
+            print "Collecting result: ", res, self.get_page_name(res[0])
             self.collect_page(res[0])
             curs.execute(sql)
             res = curs.fetchone()
@@ -94,13 +90,28 @@ class WikiCollector:
                 - Insert each un-collected page into the wiki-collections table.
         :return:
         """
+        curs = self.conn.cursor()
         links = self.gather_links(page_id)
-        for key in links['query']['pages']:
-            for link in links['query']['pages'][key]['links']:
-                self.add_page(link['title'], page_id)
+        for link in links:
+            self.add_page(link['title'], page_id)
 
         page_revisions = self.gather_revisions(page_id)
-        ## TODO: Insert each revision into the database.
+        entries = 0
+        for revision in page_revisions:
+            sql = "INSERT INTO wiki_edits (edit_time, edit_user, edit_page, pagesize," \
+                  "pagedelta, revid, parentrev) VALUES (%s, %s, %s, %s, -1, %s, %s)"
+            timestamp = revision['timestamp'] ## apparently this is fine with postgresql
+            if timestamp[0:4] in REQYEARS:
+                user_id = self.add_username(revision['user'])
+                data = (timestamp, user_id, page_id, revision['size'], revision['revid'],
+                        revision['parentid'])
+                curs.execute(sql, data)
+                entries += 1
+        print "Entered revisions: ", entries
+        sql = "UPDATE wiki_collections SET rev_collected=TRUE WHERE page_id=%s "
+        data = (page_id, )
+        curs.execute(sql, data)
+        self.conn.commit()
 
     def gather_revisions(self, page_id):
         """
@@ -108,8 +119,6 @@ class WikiCollector:
             - If there are, delete everything, we can grab new stuff.
         - Make a query to the Wikimedia API for revisions
         - Insert each revision into the wiki_edits table
-
-
         :param page_id:
         :return:
         =timestamp|user|comment|size|ids&format=json&rvlimit=500&continue=
@@ -119,47 +128,50 @@ class WikiCollector:
             "action": "query",
             "prop": "revisions",
             "titles": page_name,
-            "rvprop": "timestamp|user|comment|size|ids",
+            "rvprop": "timestamp|user|size|ids",
             "format": "json",
             "rvlimit": 500,
             "continue": ""
         })
 
-        revisions = []
+        return self.wiki_rev_query(payload)
 
-        revs = self.wiki_query(payload)
-        print revs
-        for r in revs:
-            for key in r['query']['pages']:
-                for rev in r['query']['pages'][key]['revisions']:
-                    revisions.append(rev)
-        return revisions
-
-    def wiki_query(self, params):
-        ## TODO: Ensure we are gathering all revisions.  Check against DB.
+    def wiki_rev_query(self, params):
+        """
+        Query and return all the revisions for this page.
+        :param params:
+        :return:
+        """
         headers = dict({
             "User-Agent": "Wiki_Network_Collections 1.0 (no url; james.ferrara@gmail.com) "
                           "Using Python Requests/v.2.5.3"
         })
         last_continue = ''
+        rv_continue = None
         query_res = []
         while True:
             # Modify it with the values returned in the 'continue' section of the last result.
             params['continue'] = last_continue
+            if rv_continue is not None:
+                params['rvcontinue'] = rv_continue
             # Call API
             self.api_checktime()
-            result = requests.get('http://en.wikipedia.org/w/api.php', params=params, headers=headers).json()
-            # print params, result
+            result = requests.get('http://en.wikipedia.org/w/api.php', params=params, headers=headers)
+            result = result.json()
+
             if 'error' in result:
                 raise ValueError(result['error'])
             if 'warnings' in result:
                 print(result['warnings'])
             if 'query' in result:
-                query_res.append(result)
+                query_res.extend(result['query']['pages'].values()[0]['revisions'])
+                lastobj = result['query']['pages'].values()[0]['revisions'][-1]
+                if lastobj['timestamp'][0:4] not in REQYEARS:
+                    break
             if 'continue' not in result:
-                # print "no continue, breaking"
                 break
-            last_continue = result['continue']
+            rv_continue = result['continue']['rvcontinue']
+            last_continue = result['continue']['continue']
         return query_res
 
     def get_page_name(self, page_id):
@@ -188,7 +200,12 @@ class WikiCollector:
         # http://en.wikipedia.org/w/api.php?action=query&titles=[[page_title]]&prop=links&format=json&pllimit=500&continue=
         page_name = self.get_page_name(page_id)
 
-        payload = dict({
+        headers = dict({
+            "User-Agent": "Wiki_Network_Collections 1.0 (no url; james.ferrara@gmail.com) "
+                          "Using Python Requests/v.2.5.3"
+        })
+
+        params = dict({
             "action": "query",
             "titles": page_name,
             "prop": "links",
@@ -196,24 +213,31 @@ class WikiCollector:
             "pllimit": 500,
             "continue": ""
         })
-        headers = dict({
-            "User-Agent": "Wiki_Network_Collections 1.0 (no url; james.ferrara@gmail.com) "
-                          "Using Python Requests/v.2.5.3"
-        })
 
-        self.api_checktime()
-        api_req = requests.get("http://en.wikipedia.org/w/api.php",
-                               params=payload,
-                               headers=headers)
+        last_continue = ''
+        pl_continue = None
+        query_res = []
+        while True:
+            # Modify it with the values returned in the 'continue' section of the last result.
+            params['continue'] = last_continue
+            if pl_continue is not None:
+                params['plcontinue'] = pl_continue
+            # Call API
+            self.api_checktime()
+            result = requests.get('http://en.wikipedia.org/w/api.php', params=params, headers=headers)
+            result = result.json()
 
-        try:
-            api_json = api_req.json()
-            # There's a chance that there are more than 500 results, but I think
-            # that other pages will eventually collect those.
-            # TODO: Fix it.
-            return api_json
-        except ValueError:
-            return -1
+            if 'error' in result:
+                raise ValueError(result['error'])
+            if 'warnings' in result:
+                print("Gather Pages: ", result['warnings'])
+            if 'query' in result:
+                query_res.extend(result['query']['pages'].values()[0]['links'])
+            if 'continue' not in result:
+                break
+            pl_continue = result['continue']['plcontinue']
+            last_continue = result['continue']['continue']
+        return query_res
 
     def api_checktime(self):
         """
@@ -230,15 +254,19 @@ class WikiCollector:
         :param username: some string
         :return: user_id
         """
+        username = username.strip()
+        if self.badnames.match(username) is not None:
+            username = "AUTO: anonymous ip address"
+
         curs = self.conn.cursor()
         sql = "SELECT user_id FROM wiki_usernames WHERE username=%s"
         data = (username, )
         curs.execute(sql, data)
         res = curs.fetchone()
-        if len(res) > 0:
+        if res is not None and len(res) > 0:
             return res[0]
         else:
-            sql = "INSERT INTO wiki_usernames (username) VALUE (%s) RETURNING user_id"
+            sql = "INSERT INTO wiki_usernames (username) VALUES (%s) RETURNING user_id"
             # Reusing data here.  Bad code smell?
             curs.execute(sql, data)
             res = curs.fetchone()
@@ -282,5 +310,4 @@ class WikiCollector:
 
 if __name__ == "__main__":
     wkcoll = WikiCollector()
-    wkcoll.gather_revisions(1)
-    # wkcoll.perform_collections()
+    wkcoll.perform_collections()
