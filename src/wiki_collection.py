@@ -72,7 +72,7 @@ class WikiCollector:
         curs.execute(sql)
         res = curs.fetchone()
         while res is not None:
-            print "Collecting result: ", res, self.get_page_name(res[0])
+            print time.asctime(), "Collecting result: ", res[0], self.get_page_name(res[0])
             self.collect_page(res[0])
             curs.execute(sql)
             res = curs.fetchone()
@@ -102,7 +102,11 @@ class WikiCollector:
                   "pagedelta, revid, parentrev) VALUES (%s, %s, %s, %s, -1, %s, %s)"
             timestamp = revision['timestamp'] ## apparently this is fine with postgresql
             if timestamp[0:4] in REQYEARS:
-                user_id = self.add_username(revision['user'])
+                try:
+                    user_id = self.add_username(revision['user'])
+                except KeyError:
+                    print "Key error on ", revision
+                    user_id = self.add_username("Auto: Program error, username")
                 data = (timestamp, user_id, page_id, revision['size'], revision['revid'],
                         revision['parentid'])
                 curs.execute(sql, data)
@@ -164,9 +168,12 @@ class WikiCollector:
             if 'warnings' in result:
                 print(result['warnings'])
             if 'query' in result:
-                query_res.extend(result['query']['pages'].values()[0]['revisions'])
-                lastobj = result['query']['pages'].values()[0]['revisions'][-1]
-                if lastobj['timestamp'][0:4] not in REQYEARS:
+                try:
+                    query_res.extend(result['query']['pages'].values()[0]['revisions'])
+                    lastobj = result['query']['pages'].values()[0]['revisions'][-1]
+                    if lastobj['timestamp'][0:4] not in REQYEARS:
+                        break
+                except KeyError:
                     break
             if 'continue' not in result:
                 break
@@ -232,7 +239,10 @@ class WikiCollector:
             if 'warnings' in result:
                 print("Gather Pages: ", result['warnings'])
             if 'query' in result:
-                query_res.extend(result['query']['pages'].values()[0]['links'])
+                try:
+                    query_res.extend(result['query']['pages'].values()[0]['links'])
+                except KeyError:
+                    break
             if 'continue' not in result:
                 break
             pl_continue = result['continue']['plcontinue']
@@ -299,9 +309,16 @@ class WikiCollector:
             curs.execute(sql, data)
             res = curs.fetchone()
 
+            coll_val = False
+
+            ignorevals = ["Template talk:", "File:", "Talk:", "Template:", "Help:", "Wikipedia:", "Portal:", "Category:", "Book:", "User:", "User talk:"]
+            for val in ignorevals:
+                if page_name.find(val) == 0:
+                    coll_val = True
+
             collect_sql = "INSERT INTO wiki_collections (page_id, rev_collected, seed_article, start_time) " \
-                          "VALUES (%s, FALSE, %s, NOW())"
-            coll_data = (res[0], seed_article)
+                          "VALUES (%s, %s, %s, NOW())"
+            coll_data = (res[0], coll_val, seed_article)
             curs.execute(collect_sql, coll_data)
 
             self.conn.commit()
