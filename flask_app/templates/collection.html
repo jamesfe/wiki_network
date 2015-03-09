@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <script type="text/javascript" src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+    <script type="text/javascript" src="https://code.jquery.com/jquery-1.11.2.min.js" charset="utf-8"></script>
+
+    <meta charset="UTF-8">
+    <title>Collections Overview</title>
+</head>
+<body>
+<h3>Collected Pages</h3>
+<div id="coll_chart"></div>
+<h3>Most Visited Pages</h3>
+<svg id="most_visited_pages"></svg>
+
+<script type="text/javascript">
+    $(document).ready(function() {
+
+        /**
+         * From http://jsfiddle.net/ragingsquirrel3/qkHK6/
+         */
+        var draw_piegraph = function(divid, data) {
+            var w = 200;
+            var h = 200;
+            var r = h / 2;
+            var color = d3.scale.category20c();
+            var vis = d3.select(divid).append("svg:svg").data([data]).attr("width", w).attr("height", h).append("svg:g").attr("transform", "translate(" + r + "," + r + ")");
+            var pie = d3.layout.pie().value(function (d) {
+                return d.value;
+            });
+
+            // declare an arc generator function
+            var arc = d3.svg.arc().outerRadius(r);
+
+            // select paths, use arc generator to draw
+            var arcs = vis.selectAll("g.slice").data(pie).enter().append("svg:g").attr("class", "slice");
+            arcs.append("svg:path")
+                    .attr("fill", function (d, i) {
+                        return color(i);
+                    })
+                    .attr("d", function (d) {
+                        return arc(d);
+                    });
+
+            // add the text
+            arcs.append("svg:text").attr("transform", function (d) {
+                d.innerRadius = 0;
+                d.outerRadius = r;
+                return "translate(" + arc.centroid(d) + ")";
+            }).attr("text-anchor", "middle").text(function (d, i) {
+                        return data[i].label;
+                    }
+            );
+        };
+
+        /**
+         * From mbostock's tutorial
+         * @param data
+         */
+        var draw_barchart = function(svgid, data) {
+            // var data = [4, 8, 15, 16, 23, 42];
+
+            var width = 420;
+            var barHeight = 20;
+
+            var x = d3.scale.linear()
+                    .domain([0, d3.max(data)])
+                    .range([0, width]);
+
+            var chart = d3.select(svgid)
+                    .attr("width", width)
+                    .attr("height", barHeight * data.length);
+
+            var bar = chart.selectAll("g")
+                    .data(data)
+                    .enter().append("g")
+                    .attr("transform", function (d, i) {
+                        return "translate(0," + i * barHeight + ")";
+                    });
+
+            bar.append("rect")
+                    .attr("width", x)
+                    .attr("height", barHeight - 1);
+
+            bar.append("text")
+                    .attr("x", function (d) {
+                        return x(d) - 3;
+                    })
+                    .attr("y", barHeight / 2)
+                    .attr("dy", ".35em")
+                    .text(function (d) {
+                        return d;
+                    });
+        };
+
+        var coll_data = {{  context.collected_pct | tojson | safe }};
+        var topvisits = {{ context.topvisits | safe }};
+        draw_piegraph('#coll_chart', coll_data);
+        draw_barchart('#most_visited_pages', topvisits);
+
+
+
+
+    });
+</script>
+</body>
+</html>
