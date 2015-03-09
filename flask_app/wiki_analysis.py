@@ -2,6 +2,7 @@ from flask import Flask
 from flask import render_template
 
 import json
+import os
 import psycopg2
 import time
 
@@ -22,12 +23,12 @@ def collections():
                  {"label": "Collected: " + "{:,}".format(res[1][0]),
                   "value": res[1][0]}]
 
-    if int(time.time()) % 1800 == 0:
+    if (int(time.time()) % 1800 == 0) or (not os.path.isfile(CACHE_TOP_VISITS)):
+        print "Caching objects."
         cache_top_visits(50)
     tvisit_file = file(CACHE_TOP_VISITS, 'r')
     topvisits = json.load(tvisit_file)
     tvisit_file.close()
-
 
     context = {
         "collected_pct": coll_pcts,
@@ -51,7 +52,7 @@ def cache_top_visits(numvisits):
     res = curs.fetchall()
     cache_vals = []
     for item in res:
-        app_val = dict({"data": item[0],
+        app_val = dict({"value": item[0],
                         "label": item[1]})
         cache_vals.append(app_val)
     outfile = file(CACHE_TOP_VISITS, 'w')
@@ -65,4 +66,5 @@ if __name__ == "__main__":
                "port='5432' "
     conn = psycopg2.connect(conn_str)
 
-    app.run()
+    app.run(host='0.0.0.0')
+    # app.run()

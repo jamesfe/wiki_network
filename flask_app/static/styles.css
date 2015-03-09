@@ -1,0 +1,11 @@
+
+#most_visited_pages rect {
+    fill: steelblue;
+}
+
+#most_visited_pages text {
+    fill: white;
+    font: 10px sans-serif;
+    text-anchor: end;
+}
+

@@ -1,11 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head lang="en">
+    <title>Collections Overview</title>
     <script type="text/javascript" src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
     <script type="text/javascript" src="https://code.jquery.com/jquery-1.11.2.min.js" charset="utf-8"></script>
-
-    <meta charset="UTF-8">
-    <title>Collections Overview</title>
+    <link rel="stylesheet" href="../static/styles.css" type="text/css" media="screen" charset="utf-8">
 </head>
 <body>
 <h3>Collected Pages</h3>
@@ -58,13 +57,11 @@
          * @param data
          */
         var draw_barchart = function(svgid, data) {
-            // var data = [4, 8, 15, 16, 23, 42];
-
             var width = 420;
             var barHeight = 20;
 
             var x = d3.scale.linear()
-                    .domain([0, d3.max(data)])
+                    .domain([0, d3.max(data, function(d) { return d.value; })])
                     .range([0, width]);
 
             var chart = d3.select(svgid)
@@ -74,32 +71,31 @@
             var bar = chart.selectAll("g")
                     .data(data)
                     .enter().append("g")
-                    .attr("transform", function (d, i) {
+                    .attr("transform", function(d, i) {
                         return "translate(0," + i * barHeight + ")";
                     });
 
             bar.append("rect")
-                    .attr("width", x)
+                    .attr("width", function(d) {
+                        return x(d.value);
+                    })
                     .attr("height", barHeight - 1);
 
             bar.append("text")
-                    .attr("x", function (d) {
-                        return x(d) - 3;
+                    .attr("x", function(d) {
+                        return x(d.value) - 3;
                     })
                     .attr("y", barHeight / 2)
                     .attr("dy", ".35em")
-                    .text(function (d) {
-                        return d;
+                    .text(function(d) {
+                        return d.label + " " + d.value;
                     });
         };
 
         var coll_data = {{  context.collected_pct | tojson | safe }};
-        var topvisits = {{ context.topvisits | safe }};
+        var topvisits = {{ context.topvisits | tojson | safe }};
         draw_piegraph('#coll_chart', coll_data);
         draw_barchart('#most_visited_pages', topvisits);
-
-
-
 
     });
 </script>
