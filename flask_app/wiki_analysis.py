@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+
+import sys
+reload(sys)
+sys.setdefaultencoding("utf-8")
+
 from flask import Flask
 from flask import render_template
 
@@ -30,9 +36,31 @@ def collections():
     topvisits = json.load(tvisit_file)
     tvisit_file.close()
 
+    next_n_sql = "SELECT wp.page_name FROM wiki_collections wc LEFT JOIN wiki_pages wp ON wc.page_id=wp.wpage_id WHERE rev_collected=FALSE ORDER BY coll_id ASC LIMIT %s"
+    data = (25,)
+    curs.execute(next_n_sql, data)
+    results = curs.fetchall()
+
+    next_n = []
+    for res in results:
+        next_n.append(res[0])
+
+    top_users = "select count(*), wu.username from wiki_edits we left join wiki_usernames wu on wu.user_id=we.edit_user where we.edit_user!=12 group by wu.username order by count(*) desc limit %s"
+    data = (100, )
+    curs.execute(top_users, data)
+    results = curs.fetchall()
+    top_users_res = []
+    for res in results:
+        app_res = dict({"label": res[1], "value": res[0]})
+        top_users_res.append(app_res)
+
+    # user_count = "SELECT
+
     context = {
         "collected_pct": coll_pcts,
-        "topvisits": topvisits
+        "topvisits": topvisits,
+        "next_n_collects": next_n,
+        "topusers": top_users_res
     }
 
     return render_template('collection.html', context=context)
@@ -66,5 +94,5 @@ if __name__ == "__main__":
                "port='5432' "
     conn = psycopg2.connect(conn_str)
 
-    app.run(host='0.0.0.0')
+    app.run(host='0.0.0.0', debug=True)
     # app.run()

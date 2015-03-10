@@ -4,8 +4,18 @@
 }
 
 #most_visited_pages text {
-    fill: white;
+    fill: black;
     font: 10px sans-serif;
     text-anchor: end;
 }
 
+
+#top_users rect {
+    fill: steelblue;
+}
+
+#top_users text {
+    fill: black;
+    font: 10px sans-serif;
+    text-anchor: end;
+}

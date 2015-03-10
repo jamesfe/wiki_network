@@ -2,15 +2,22 @@
 <html>
 <head lang="en">
     <title>Collections Overview</title>
-    <script type="text/javascript" src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
-    <script type="text/javascript" src="https://code.jquery.com/jquery-1.11.2.min.js" charset="utf-8"></script>
+    <script type="text/javascript" src="/static/vendor/d3/d3.v3.min.js" charset="utf-8"></script>
+    <script type="text/javascript" src="/static/vendor/jquery/jquery-1.11.2.min.js" charset="utf-8"></script>
     <link rel="stylesheet" href="../static/styles.css" type="text/css" media="screen" charset="utf-8">
+    <meta charset="utf-8">
 </head>
 <body>
 <h3>Collected Pages</h3>
 <div id="coll_chart"></div>
 <h3>Most Visited Pages</h3>
 <svg id="most_visited_pages"></svg>
+<h3>Next Collects</h3>
+{% for item in context.next_n_collects %}
+<div>{{ item }}</div>
+{% endfor %}
+<h3>User Data</h3>
+<svg id="top_users"></svg>
 
 <script type="text/javascript">
     $(document).ready(function() {
@@ -53,7 +60,7 @@
         };
 
         /**
-         * From mbostock's tutorial
+         * From mbostock's tutorial - modified some
          * @param data
          */
         var draw_barchart = function(svgid, data) {
@@ -82,20 +89,25 @@
                     .attr("height", barHeight - 1);
 
             bar.append("text")
-                    .attr("x", function(d) {
-                        return x(d.value) - 3;
-                    })
-                    .attr("y", barHeight / 2)
-                    .attr("dy", ".35em")
                     .text(function(d) {
                         return d.label + " " + d.value;
-                    });
+                    })
+                    .attr("x", function(d) {
+                        if (this.getComputedTextLength() > x(d.value)) {
+                            return(this.getComputedTextLength() + 3);
+                        }
+                        return (x(d.value) - 3);
+                    })
+                    .attr("y", barHeight / 2)
+                    .attr("dy", ".35em");
         };
 
-        var coll_data = {{  context.collected_pct | tojson | safe }};
-        var topvisits = {{ context.topvisits | tojson | safe }};
+        var coll_data = {{  context.collected_pct | tojson | safe }} || {};
+        var topvisits = {{ context.topvisits | tojson | safe }} || {};
+        var topusers = {{ context.topusers | tojson | safe }} || {};
         draw_piegraph('#coll_chart', coll_data);
         draw_barchart('#most_visited_pages', topvisits);
+        draw_barchart('#top_users', topusers);
 
     });
 </script>

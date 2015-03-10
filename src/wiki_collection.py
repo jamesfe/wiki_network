@@ -254,8 +254,12 @@ class WikiCollector:
         Check the time, wait if necessary, and log a new api request.
         :return:
         """
-        if time.time() < (self.api_clock + self.api_reqrate):
-            time.sleep(self.api_reqrate)
+        sleeptime = time.time() - (self.api_clock + self.api_reqrate)
+        if sleeptime > 0:
+            time.sleep(sleeptime)
+        # if time.time() < (self.api_clock + self.api_reqrate):
+        #     time.sleep(time.time() - (self.api_clock + self.api_reqrate))
+        #     #time.sleep(self.api_reqrate)
         self.api_clock = time.time()
 
     def add_username(self, username):
