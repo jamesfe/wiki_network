@@ -17,8 +17,27 @@ conn = None
 
 CACHE_TOP_VISITS = "./cache/topvisits.json"
 
+
+@app.route("/getallgraph/<page_name>/")
+def get_all_graph(page_name):
+    """
+    Grab an article, all related users, then repeat two levels out.
+    :param page_name:
+    :return:
+    """
+    curs = conn.cursor()
+    # TODO: Finish graph code.
+
+
 @app.route("/collections/")
 def collections():
+    """
+    Display the current state of collections.
+
+    WARNING: Pretty heavy on the database.  Don't use too often?
+    TODO: Break up into separate functions so we can ajax onclick-load these individually.
+    :return:
+    """
 
     curs = conn.cursor()
     coll_sql = "select count(*), rev_collected from wiki_collections group by rev_collected order by rev_collected"

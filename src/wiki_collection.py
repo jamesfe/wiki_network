@@ -7,6 +7,7 @@ import re
 
 REQYEARS = ('2014', '2015')
 
+
 class WikiCollector:
     """
     This is a collector for wikipedia information.  We are collecting revisions, the size of the article at the end
@@ -159,8 +160,16 @@ class WikiCollector:
             if rv_continue is not None:
                 params['rvcontinue'] = rv_continue
             # Call API
-            self.api_checktime()
-            result = requests.get('http://en.wikipedia.org/w/api.php', params=params, headers=headers)
+            valid_data = False
+            while not valid_data:
+                try:
+                    self.api_checktime("revision")
+                    result = requests.get('http://en.wikipedia.org/w/api.php', params=params, headers=headers)
+                except requests.exceptions.ConnectionError:
+                    print "Bad status line?"
+                    valid_data = False
+                    continue
+                valid_data = True
             result = result.json()
 
             if 'error' in result:
@@ -230,7 +239,7 @@ class WikiCollector:
             if pl_continue is not None:
                 params['plcontinue'] = pl_continue
             # Call API
-            self.api_checktime()
+            self.api_checktime("links")
             result = requests.get('http://en.wikipedia.org/w/api.php', params=params, headers=headers)
             result = result.json()
 
@@ -249,14 +258,19 @@ class WikiCollector:
             last_continue = result['continue']['continue']
         return query_res
 
-    def api_checktime(self):
+    def api_checktime(self, note=""):
         """
         Check the time, wait if necessary, and log a new api request.
         :return:
         """
+        print "Note: ", note,
         sleeptime = time.time() - (self.api_clock + self.api_reqrate)
         if sleeptime > 0:
-            time.sleep(sleeptime)
+            print "Negative sleeptime: ", sleeptime
+        else:
+            print "Sleeping for ", abs(sleeptime)
+            time.sleep(abs(sleeptime))
+
         # if time.time() < (self.api_clock + self.api_reqrate):
         #     time.sleep(time.time() - (self.api_clock + self.api_reqrate))
         #     #time.sleep(self.api_reqrate)

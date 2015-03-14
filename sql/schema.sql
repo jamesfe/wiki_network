@@ -92,3 +92,23 @@ WITH (
 );
 ALTER TABLE wiki_edits
   OWNER TO jimmy1;
+
+DROP TABLE IF EXISTS wiki_edit_ratio cascade;
+drop sequence IF EXISTS edit_ratio_id_seq;
+create sequence edit_ratio_id_seq;
+
+CREATE TABLE wiki_edits_ratio
+(
+  num_collected integer,
+  num_uncollected integer,
+  num_visited integer,
+  ratio_id integer NOT NULL DEFAULT nextval('edit_ratio_id_seq'::regclass),
+
+  CONSTRAINT wiki_ratio_pkey PRIMARY KEY (ratio_id)
+)
+WITH (
+  OIDS=FALSE
+);
+ALTER TABLE wiki_edits_ratio
+  OWNER TO jimmy1;
+
