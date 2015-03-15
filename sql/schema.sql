@@ -99,6 +99,7 @@ create sequence edit_ratio_id_seq;
 
 CREATE TABLE wiki_edits_ratio
 (
+  curr_page_id integer,
   num_collected integer,
   num_uncollected integer,
   num_visited integer,

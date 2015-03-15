@@ -101,7 +101,7 @@ class WikiCollector:
         for revision in page_revisions:
             sql = "INSERT INTO wiki_edits (edit_time, edit_user, edit_page, pagesize," \
                   "pagedelta, revid, parentrev) VALUES (%s, %s, %s, %s, -1, %s, %s)"
-            timestamp = revision['timestamp'] ## apparently this is fine with postgresql
+            timestamp = revision['timestamp']  # apparently this is fine with postgresql
             if timestamp[0:4] in REQYEARS:
                 try:
                     user_id = self.add_username(revision['user'])
