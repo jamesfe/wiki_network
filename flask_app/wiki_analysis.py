@@ -48,6 +48,8 @@ def collections():
                  {"label": "Collected: " + "{:,}".format(res[1][0]),
                   "value": res[1][0]}]
 
+    # TODO: Fix this time hack down here, we need to get the age of the file and then check it.
+    # This only works if the user requests comes in on EXACTLY the half hour.
     if (int(time.time()) % 1800 == 0) or (not os.path.isfile(CACHE_TOP_VISITS)):
         print "Caching objects."
         cache_top_visits(50)

@@ -1,4 +1,6 @@
-
+"""
+Class to collect data from wikipedia.
+"""
 
 import requests
 import psycopg2
@@ -8,7 +10,7 @@ import re
 REQYEARS = ('2014', '2015')
 
 
-class WikiCollector:
+class WikiCollector():
     """
     This is a collector for wikipedia information.  We are collecting revisions, the size of the article at the end
     of the revision, and the author of the revision as well as ancillary data (timestamp, etc.)
@@ -175,7 +177,7 @@ class WikiCollector:
             if 'error' in result:
                 raise ValueError(result['error'])
             if 'warnings' in result:
-                print(result['warnings'])
+                print result['warnings']
             if 'query' in result:
                 try:
                     query_res.extend(result['query']['pages'].values()[0]['revisions'])
@@ -329,7 +331,8 @@ class WikiCollector:
 
             coll_val = False
 
-            ignorevals = ["Template talk:", "File:", "Talk:", "Template:", "Help:", "Wikipedia:", "Portal:", "Category:", "Book:", "User:", "User talk:"]
+            ignorevals = ["Template talk:", "File:", "Talk:", "Template:", "Help:", "Wikipedia:",
+                          "Portal:", "Category:", "Book:", "User:", "User talk:"]
             for val in ignorevals:
                 if page_name.find(val) == 0:
                     coll_val = True
@@ -344,5 +347,6 @@ class WikiCollector:
 
 
 if __name__ == "__main__":
-    wkcoll = WikiCollector()
-    wkcoll.perform_collections()
+    WIKICOLL = WikiCollector()
+    WIKICOLL.perform_collections()
+
