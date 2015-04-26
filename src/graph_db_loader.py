@@ -55,7 +55,7 @@ if __name__ == "__main__":
     # n4jconn.create(p1, p2)
 
     print time.asctime(), "Entering nodes."
-    new_nodes = pg_get_nodes(50000)
+    new_nodes = pg_get_nodes(1000)
     for item in new_nodes:
         it2 = dict()
         nnode = Node.cast("Article", item)

@@ -4,11 +4,62 @@ Analysis functions that can be separated from Flask
 
 import psycopg2
 import time
+from py2neo import Graph
+from py2neo import Node, Relationship
+import json
 
 conn = None
+n4jconn = None
 
 
-def build_revisit_timeline(page_id, start_time, end_time, time_step):
+def n4jconnect():
+    """
+    Globally connect.
+    :return:
+    """
+    global n4jconn
+    n4jconn = Graph()
+    return n4jconn
+
+
+def get_nodelinks(page_id):
+    """
+    here we get a node's stuff, then we return some JSON of what it would take to add this
+    to the graph.
+    :param page_id:
+    :return:
+    """
+    n4jconnect()
+
+    ret_vals = []
+
+    seed_node = n4jconn.find_one("Article", 'page_id', page_id)
+    if seed_node is None:
+        return None
+
+    ret_vals.append(dict({"type": "node",
+                          "name": seed_node.properties['page_name'],
+                          "id": seed_node.properties['page_id']}))
+
+    outlinks = n4jconn.match(seed_node)
+    numlinks = 0
+    linklimit = 50
+    for link in outlinks:
+        to_node = link.end_node
+        ret_vals.append(dict({"type": "node",
+                              "name": to_node.properties['page_name'],
+                              "id": to_node.properties['page_id']}))
+        ret_vals.append(dict({"type": "link",
+                              "from": seed_node.properties['page_id'],
+                              "to": to_node.properties['page_id']}))
+        numlinks += 1
+        if numlinks > linklimit:
+            break
+
+    return ret_vals
+
+
+def build_revisit_timeline(page_id=None, start_time=None, end_time=None, time_step=None):
     """
     Given a start time, end time, and increments, find the average number of revisits for a page.
     How do we do this?
@@ -109,5 +160,6 @@ if __name__ == "__main__":
                "host='localhost' " \
                "port='5432' "
     conn = psycopg2.connect(conn_str)
+    n4jconnect()
 
-    cache_build_ratios()
+    # graphdata = get_nodelinks('Aage Bohr')

@@ -12,6 +12,8 @@ import os
 import psycopg2
 import time
 
+from functionality import get_nodelinks
+
 app = Flask(__name__)
 conn = None
 
@@ -85,6 +87,25 @@ def collections():
     }
 
     return render_template('collection.html', context=context)
+
+@app.route("/network/")
+def show_network():
+    """
+    show the network
+    :return:
+    """
+    return render_template('network.html')
+
+
+@app.route("/getlinks/<page_id>/")
+def get_links(page_id):
+    """
+    get a set of links and the attached nodes for this page_id (article contributions)
+    :param page_id:
+    :return:
+    """
+    page_id = int(page_id)
+    return json.dumps(get_nodelinks(page_id))
 
 
 def cache_top_visits(numvisits):
