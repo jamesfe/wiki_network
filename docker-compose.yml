@@ -1,6 +1,18 @@
+scraper:
+    restart: always
+    build: ./scraper_container
+    links:
+     - postgres:postgres
 postgres:
-    image: postgres
+    restart: always
+    image: postgres:latest
+    volumes_from:
+     - data
     ports:
      - "5432:5432"
-    environment:
-     - POSTGRES_PASSWORD=supersecret
+data:
+    restart: always
+    image: postgres:latest
+    volumes:
+     - ./data:/var/lib/postgresql
+    command: "true"
